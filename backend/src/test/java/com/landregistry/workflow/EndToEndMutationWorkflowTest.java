@@ -29,15 +29,20 @@ public class EndToEndMutationWorkflowTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private com.landregistry.blockchain.Web3jBlockchainService blockchainService;
+
     @Test
     @Transactional
     public void testEndToEndTransferWorkflow() {
+        blockchainService.setMode("SIMULATION");
+
         // 1. Verify Seeded Data
         User alice = userRepository.findByLogin("alice").orElseThrow();
         User bob = userRepository.findByLogin("bob").orElseThrow();
         User clara = userRepository.findByLogin("clara").orElseThrow(); // Registrar
 
-        Parcel parcel = parcelRepository.findByParcelCode("PARCEL-DL-001").orElseThrow();
+        Parcel parcel = parcelRepository.findByParcelCode("P-101").orElseThrow();
         assertEquals("u-alice", parcel.getOwner().getId());
         assertEquals(1, parcel.getVersion());
 

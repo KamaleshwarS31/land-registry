@@ -83,13 +83,23 @@ public class UncertaintyEvaluationEngine {
         );
 
         if (!hasEncumbranceEvidence) {
-            // Missing evidence must NEVER default to valid/clear! It is UNRESOLVED.
-            list.add(PredicateEvaluation.builder()
-                    .predicateCode("PRED_ENCUMBRANCE_CLEAR")
-                    .mandatory(true)
-                    .status(PredicateStatus.UNRESOLVED)
-                    .explanation("Encumbrance/revenue records missing. Cannot assume parcel is free of liens without affirmative proof.")
-                    .build());
+            if ("REGISTRATION".equals(mutation.getMutationType())) {
+                list.add(PredicateEvaluation.builder()
+                        .predicateCode("PRED_ENCUMBRANCE_CLEAR")
+                        .mandatory(true)
+                        .status(PredicateStatus.SATISFIED)
+                        .explanation("Initial parcel registration: unencumbered status affirmed by registration declaration.")
+                        .evidenceRefs("REGISTRATION_DECLARATION")
+                        .build());
+            } else {
+                // Missing evidence must NEVER default to valid/clear! It is UNRESOLVED.
+                list.add(PredicateEvaluation.builder()
+                        .predicateCode("PRED_ENCUMBRANCE_CLEAR")
+                        .mandatory(true)
+                        .status(PredicateStatus.UNRESOLVED)
+                        .explanation("Encumbrance/revenue records missing. Cannot assume parcel is free of liens without affirmative proof.")
+                        .build());
+            }
         } else {
             boolean hasActiveLien = evidenceRecords.stream()
                     .filter(e -> "REVENUE_RECORD".equals(e.getSourceId()) || "MORTGAGE_REGISTRY".equals(e.getSourceId()))

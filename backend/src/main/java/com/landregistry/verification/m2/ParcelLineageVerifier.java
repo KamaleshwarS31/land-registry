@@ -153,7 +153,23 @@ public class ParcelLineageVerifier {
                 }
             }
 
-            // Invariant 1: Check for overlaps between children
+            // Invariant 1: Child Containment - children must remain strictly within parent boundary
+            for (int i = 0; i < childGeoms.size(); i++) {
+                Geometry cg = childGeoms.get(i);
+                if (!parentGeom.covers(cg)) {
+                    double spillArea = cg.difference(parentGeom).getArea();
+                    if (spillArea > 0.01) {
+                        return LineageVerificationResult.builder()
+                                .valid(false)
+                                .areaDiscrepancySqm(spillArea)
+                                .explanation(String.format("Child parcel %d spills outside parent boundary (uncovered area: %.2f sqm). Children must remain entirely within parent boundary.",
+                                        i + 1, spillArea))
+                                .build();
+                    }
+                }
+            }
+
+            // Invariant 2: Non-overlapping children
             for (int i = 0; i < childGeoms.size(); i++) {
                 for (int j = i + 1; j < childGeoms.size(); j++) {
                     Geometry intersection = childGeoms.get(i).intersection(childGeoms.get(j));
@@ -166,15 +182,30 @@ public class ParcelLineageVerifier {
                 }
             }
 
-            // Invariant 2: Area conservation within 0.1% tolerance
+            // Invariant 3: Gap Detection and Area conservation within max(1.0, 0.001 * parentArea)
+            Geometry childUnion = childGeoms.get(0);
+            for (int k = 1; k < childGeoms.size(); k++) {
+                childUnion = childUnion.union(childGeoms.get(k));
+            }
+            double gapArea = parentGeom.difference(childUnion).getArea();
             double areaDiff = Math.abs(parentArea - childAreaSum);
-            double tolerance = parentArea * 0.001; // 0.1%
-            if (areaDiff > Math.max(tolerance, 1.0)) { // at least 1 sqm or 0.1%
+            double tolerance = Math.max(1.0, parentArea * 0.001); // 1.0 sqm floor or 0.1% parent area
+
+            if (gapArea > tolerance) {
+                return LineageVerificationResult.builder()
+                        .valid(false)
+                        .areaDiscrepancySqm(gapArea)
+                        .explanation(String.format("Boundary gap detected: %.2f sqm of parent parcel is unaccounted for by child parcels (tolerance: %.2f sqm).",
+                                gapArea, tolerance))
+                        .build();
+            }
+
+            if (areaDiff > tolerance) {
                 return LineageVerificationResult.builder()
                         .valid(false)
                         .areaDiscrepancySqm(areaDiff)
-                        .explanation(String.format("Area conservation violated: parent has %.2f sqm, children sum to %.2f sqm (discrepancy: %.2f sqm exceeds tolerance).",
-                                parentArea, childAreaSum, areaDiff))
+                        .explanation(String.format("Area conservation violated: parent has %.2f sqm, children sum to %.2f sqm (discrepancy: %.2f sqm exceeds tolerance of %.2f sqm).",
+                                parentArea, childAreaSum, areaDiff, tolerance))
                         .build();
             }
 

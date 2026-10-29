@@ -140,11 +140,28 @@ export const api = {
       if (!res.ok) throw new Error('Certificate not found');
       return res.json();
     },
+    verify: async (id: string, payload?: string) => {
+      const res = await fetch(`${API_BASE}/certificates/${id}/verify`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: payload ? JSON.stringify({ payload }) : undefined,
+      });
+      if (!res.ok) throw new Error('Failed to verify certificate');
+      return res.json();
+    },
   },
   admin: {
     getHealth: async () => {
       const res = await fetch(`${API_BASE}/admin/system-health`, { headers: getHeaders() });
       if (!res.ok) throw new Error('Failed to load health status');
+      return res.json();
+    },
+    resetDemo: async () => {
+      const res = await fetch(`${API_BASE}/admin/demo-reset`, {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+      if (!res.ok) throw new Error('Failed to reset demo dataset');
       return res.json();
     },
     getUsers: async () => {

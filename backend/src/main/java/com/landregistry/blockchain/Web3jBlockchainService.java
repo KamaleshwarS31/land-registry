@@ -33,6 +33,7 @@ public class Web3jBlockchainService {
     private final String contractAddress;
     private final String registrarPrivateKey;
     private final long chainId;
+    private String mode; // "LIVE" or "SIMULATION"
 
     private Web3j web3j;
     private Credentials credentials;
@@ -43,12 +44,14 @@ public class Web3jBlockchainService {
             @Value("${app.blockchain.rpc-url:http://127.0.0.1:8545}") String rpcUrl,
             @Value("${app.blockchain.contract-address:0x5FbDB2315678afecb367f032d93F642f64180aa3}") String contractAddress,
             @Value("${app.blockchain.registrar-private-key:0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}") String registrarPrivateKey,
-            @Value("${app.blockchain.chain-id:31337}") long chainId
+            @Value("${app.blockchain.chain-id:31337}") long chainId,
+            @Value("${app.blockchain.mode:LIVE}") String mode
     ) {
         this.rpcUrl = rpcUrl;
         this.contractAddress = contractAddress;
         this.registrarPrivateKey = registrarPrivateKey;
         this.chainId = chainId;
+        this.mode = (mode != null && !mode.isBlank()) ? mode.trim().toUpperCase() : "LIVE";
         initConnection();
     }
 
@@ -60,15 +63,27 @@ public class Web3jBlockchainService {
             // Test connection with client version check
             String clientVersion = web3j.web3ClientVersion().send().getWeb3ClientVersion();
             this.isConnected = true;
-            log.info("Connected to EVM Blockchain node at {}. Client: {}", rpcUrl, clientVersion);
+            log.info("Connected to EVM Blockchain node at {}. Client: {}. Mode: {}", rpcUrl, clientVersion, mode);
         } catch (Exception e) {
             this.isConnected = false;
-            log.warn("Could not connect to live EVM node at {} ({}). Using simulated blockchain mode.", rpcUrl, e.getMessage());
+            log.warn("Could not connect to EVM node at {} ({}). Current mode: {}", rpcUrl, e.getMessage(), mode);
         }
     }
 
     public boolean isNodeConnected() {
         return isConnected;
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode != null ? mode.trim().toUpperCase() : "LIVE";
+    }
+
+    public boolean isSimulatedMode() {
+        return "SIMULATION".equalsIgnoreCase(mode);
     }
 
     public String getContractAddress() {
@@ -206,6 +221,7 @@ public class Web3jBlockchainService {
                             .txHash(receipt.getTransactionHash())
                             .blockNumber(receipt.getBlockNumber().longValue())
                             .gasUsed(receipt.getGasUsed().longValue())
+                            .simulated(false)
                             .errorMessage(isSuccess ? null : "Transaction reverted on chain")
                             .build();
                 } else {
@@ -214,27 +230,43 @@ public class Web3jBlockchainService {
                             .txHash(txHash)
                             .blockNumber(1L)
                             .gasUsed(65000L)
+                            .simulated(false)
                             .build();
                 }
 
             } catch (Exception e) {
                 log.error("Live EVM execution failed for {}: {}", action, e.getMessage());
-                return BlockchainCommitResult.builder()
-                        .success(false)
-                        .txHash(null)
-                        .errorMessage("EVM transaction failed: " + e.getMessage())
-                        .build();
+                if (!isSimulatedMode()) {
+                    return BlockchainCommitResult.builder()
+                            .success(false)
+                            .txHash(null)
+                            .simulated(false)
+                            .errorMessage("EVM transaction failed: " + e.getMessage())
+                            .build();
+                }
             }
         }
 
-        // Simulated Fallback for offline mode
+        // If in LIVE mode and node is unreachable, FAIL CLOSED (do not fabricate transaction hashes)
+        if (!isSimulatedMode()) {
+            log.error("Live EVM node at {} unreachable for {}. Fail-closed: transaction aborted.", rpcUrl, action);
+            return BlockchainCommitResult.builder()
+                    .success(false)
+                    .txHash(null)
+                    .simulated(false)
+                    .errorMessage("EVM node at " + rpcUrl + " is unreachable. Live mode fails closed to prevent unanchored state.")
+                    .build();
+        }
+
+        // Explicit Simulated Fallback for demo simulation mode
         String simTxHash = "0x" + UUID.randomUUID().toString().replace("-", "") + "00000000000000000000000000000000";
-        log.info("Simulated on-chain commit [{}] -> Tx: {}", action, simTxHash);
+        log.warn("SIMULATED on-chain commit [{}] -> Tx: {}", action, simTxHash);
         return BlockchainCommitResult.builder()
                 .success(true)
                 .txHash(simTxHash)
                 .blockNumber(100L)
                 .gasUsed(48250L)
+                .simulated(true)
                 .build();
     }
 

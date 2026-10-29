@@ -36,6 +36,17 @@ public class DecisionCertificateEngine {
             List<ConflictWitness> conflicts,
             LineageVerificationResult lineageResult
     ) {
+        return generateCertificate(mutation, decision, predicates, conflicts, lineageResult, Collections.emptyList());
+    }
+
+    public DecisionCertificate generateCertificate(
+            MutationRequest mutation,
+            DecisionType decision,
+            List<PredicateEvaluation> predicates,
+            List<ConflictWitness> conflicts,
+            LineageVerificationResult lineageResult,
+            List<com.landregistry.model.EvidenceRecord> evidenceRecords
+    ) {
         try {
             Map<String, Object> canonicalMap = new TreeMap<>();
             canonicalMap.put("certificateVersion", "1.0");
@@ -45,6 +56,16 @@ public class DecisionCertificateEngine {
             canonicalMap.put("expectedVersions", mutation.getExpectedVersions());
             canonicalMap.put("requestedBy", mutation.getRequestedBy() != null ? mutation.getRequestedBy().getId() : null);
             canonicalMap.put("decision", decision.name());
+
+            // Evidence fingerprints
+            List<String> evidenceHashes = (evidenceRecords != null)
+                    ? evidenceRecords.stream()
+                        .map(com.landregistry.model.EvidenceRecord::getSha256Hash)
+                        .filter(Objects::nonNull)
+                        .sorted()
+                        .toList()
+                    : Collections.emptyList();
+            canonicalMap.put("evidenceHashes", evidenceHashes);
 
             // Predicate summary
             Map<String, String> predMap = new TreeMap<>();
@@ -69,9 +90,7 @@ public class DecisionCertificateEngine {
             String canonicalJson = sortedMapper.writeValueAsString(canonicalMap);
 
             // SHA-256 Digest
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(canonicalJson.getBytes(StandardCharsets.UTF_8));
-            String sha256Hex = HexFormat.of().formatHex(hash);
+            String sha256Hex = computeDigest(canonicalJson);
 
             return DecisionCertificate.builder()
                     .id(UUID.randomUUID().toString())
@@ -85,6 +104,22 @@ public class DecisionCertificateEngine {
         } catch (Exception e) {
             log.error("Failed to generate decision certificate", e);
             throw new RuntimeException("Decision certificate generation failed", e);
+        }
+    }
+
+    public boolean verifyDigest(String canonicalJson, String expectedHash) {
+        if (canonicalJson == null || expectedHash == null) return false;
+        String recomputed = computeDigest(canonicalJson);
+        return recomputed.equalsIgnoreCase(expectedHash);
+    }
+
+    public String computeDigest(String canonicalJson) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(canonicalJson.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception e) {
+            throw new RuntimeException("Digest computation failed", e);
         }
     }
 }

@@ -109,6 +109,7 @@ CREATE TABLE blockchain_transactions (
     block_number BIGINT,
     receipt_status INT,
     gas_used BIGINT,
+    is_simulated BOOLEAN DEFAULT FALSE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 

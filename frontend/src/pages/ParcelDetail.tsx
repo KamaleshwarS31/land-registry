@@ -262,7 +262,19 @@ export const ParcelDetail: React.FC = () => {
       {/* Tab 4: Blockchain Proof */}
       {activeTab === 'blockchain' && (
         <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs space-y-4">
-          <h3 className="font-bold text-sm text-slate-900">EVM Smart Contract Attestation</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-sm text-slate-900">EVM Smart Contract Attestation</h3>
+            {parcel.blockchainTxHash?.startsWith('0x') && parcel.blockchainTxHash?.length > 40 && !parcel.blockchainTxHash?.includes('00000000000000000000000000000000') ? (
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                LIVE ON-CHAIN
+              </span>
+            ) : (
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
+                SIMULATED / SEED PROOF
+              </span>
+            )}
+          </div>
           <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/60 text-xs space-y-2 font-mono">
             <div>
               <span className="text-slate-500">Contract Address:</span>{' '}
@@ -270,7 +282,7 @@ export const ParcelDetail: React.FC = () => {
             </div>
             <div>
               <span className="text-slate-500">Transaction Hash:</span>{' '}
-              <strong className="text-slate-900">{parcel.blockchainTxHash || 'Genesis / Seed Transaction'}</strong>
+              <strong className="text-slate-900 break-all">{parcel.blockchainTxHash || 'Genesis / Seed Transaction'}</strong>
             </div>
             <div>
               <span className="text-slate-500">Committed State Version:</span>{' '}

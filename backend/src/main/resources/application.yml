@@ -72,6 +72,10 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+app:
+  blockchain:
+    mode: SIMULATION
+
 ---
 app:
   jwt:
@@ -85,6 +89,7 @@ app:
     provider: ${STORAGE_PROVIDER:LOCAL} # LOCAL or SUPABASE
     local-dir: ${LOCAL_STORAGE_DIR:./uploads}
   blockchain:
+    mode: ${BLOCKCHAIN_MODE:LIVE} # LIVE or SIMULATION
     rpc-url: ${CHAIN_RPC_URL:http://127.0.0.1:8545}
     chain-id: ${CHAIN_ID:31337}
     contract-address: ${CONTRACT_ADDRESS:0x5FbDB2315678afecb367f032d93F642f64180aa3}

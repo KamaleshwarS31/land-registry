@@ -65,34 +65,75 @@ public class ContradictionReconciliationEngine {
             return witnesses;
         }
 
-        // Rule 1: RULE_OWNERSHIP_COLLISION
-        Map<String, List<NormalizedAssertion>> ownerClaimsBySource = assertions.stream()
-                .filter(a -> "OWNER_NAME".equals(a.getAttributeName()) && !a.getNormalizedValue().isEmpty())
-                .collect(Collectors.groupingBy(NormalizedAssertion::getSourceId));
+        // Group assertions by parcel code to ensure checks are scoped per parcel
+        Map<String, List<NormalizedAssertion>> assertionsByParcel = assertions.stream()
+                .collect(Collectors.groupingBy(a -> a.getParcelCode() != null ? a.getParcelCode() : "GLOBAL"));
 
-        Set<String> distinctOwners = assertions.stream()
-                .filter(a -> "OWNER_NAME".equals(a.getAttributeName()) && !a.getNormalizedValue().isEmpty())
-                .map(NormalizedAssertion::getNormalizedValue)
-                .collect(Collectors.toSet());
+        for (Map.Entry<String, List<NormalizedAssertion>> entry : assertionsByParcel.entrySet()) {
+            String parcelCode = entry.getKey();
+            List<NormalizedAssertion> parcelAssertions = entry.getValue();
 
-        if (distinctOwners.size() > 1 && ownerClaimsBySource.size() > 1) {
-            List<String> sources = new ArrayList<>(ownerClaimsBySource.keySet());
-            List<String> evidenceIds = assertions.stream()
-                    .filter(a -> "OWNER_NAME".equals(a.getAttributeName()))
-                    .map(NormalizedAssertion::getEvidenceId)
-                    .collect(Collectors.toList());
+            // Rule 1: RULE_OWNERSHIP_COLLISION (scoped to this parcel)
+            Map<String, List<NormalizedAssertion>> ownerClaimsBySource = parcelAssertions.stream()
+                    .filter(a -> "OWNER_NAME".equals(a.getAttributeName()) && !a.getNormalizedValue().isEmpty())
+                    .collect(Collectors.groupingBy(NormalizedAssertion::getSourceId));
 
-            witnesses.add(ConflictWitness.builder()
-                    .ruleCode("RULE_OWNERSHIP_COLLISION")
-                    .sourceIds(sources)
-                    .conflictingAssertionIds(evidenceIds)
-                    .severity("HIGH")
-                    .explanation(String.format("Cross-registry owner contradiction detected: multiple distinct owners claimed across sources (%s).",
-                            String.join(", ", distinctOwners)))
-                    .build());
+            Set<String> distinctOwners = parcelAssertions.stream()
+                    .filter(a -> "OWNER_NAME".equals(a.getAttributeName()) && !a.getNormalizedValue().isEmpty())
+                    .map(NormalizedAssertion::getNormalizedValue)
+                    .collect(Collectors.toSet());
+
+            if (distinctOwners.size() > 1 && ownerClaimsBySource.size() > 1) {
+                List<String> sources = new ArrayList<>(ownerClaimsBySource.keySet());
+                List<String> evidenceIds = parcelAssertions.stream()
+                        .filter(a -> "OWNER_NAME".equals(a.getAttributeName()))
+                        .map(NormalizedAssertion::getEvidenceId)
+                        .collect(Collectors.toList());
+
+                witnesses.add(ConflictWitness.builder()
+                        .ruleCode("RULE_OWNERSHIP_COLLISION")
+                        .sourceIds(sources)
+                        .conflictingAssertionIds(evidenceIds)
+                        .severity("HIGH")
+                        .explanation(String.format("Cross-registry owner contradiction detected for parcel [%s]: multiple distinct owners claimed across sources (%s).",
+                                parcelCode, String.join(", ", distinctOwners)))
+                        .build());
+            }
+
+            // Rule 3: RULE_SURVEY_BOUNDARY_DEVIATION (scoped to this parcel)
+            List<NormalizedAssertion> areaAssertions = parcelAssertions.stream()
+                    .filter(a -> "SURVEY_AREA_SQM".equals(a.getAttributeName()) || "AREA".equals(a.getAttributeName()))
+                    .toList();
+
+            if (areaAssertions.size() >= 2) {
+                List<BigDecimal> areas = new ArrayList<>();
+                for (NormalizedAssertion a : areaAssertions) {
+                    try {
+                        areas.add(new BigDecimal(a.getNormalizedValue()));
+                    } catch (Exception ignored) {}
+                }
+                if (areas.size() >= 2) {
+                    BigDecimal min = areas.stream().min(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
+                    BigDecimal max = areas.stream().max(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
+                    if (min.compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal diff = max.subtract(min);
+                        BigDecimal pct = diff.divide(min, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+                        if (pct.compareTo(BigDecimal.valueOf(1.5)) > 0) {
+                            witnesses.add(ConflictWitness.builder()
+                                    .ruleCode("RULE_SURVEY_BOUNDARY_DEVIATION")
+                                    .sourceIds(areaAssertions.stream().map(NormalizedAssertion::getSourceId).distinct().toList())
+                                    .conflictingAssertionIds(areaAssertions.stream().map(NormalizedAssertion::getEvidenceId).toList())
+                                    .severity("MEDIUM")
+                                    .explanation(String.format("Area discrepancy for parcel [%s] exceeds 1.5%% tolerance (observed min: %s sqm, max: %s sqm, variance: %s%%).",
+                                            parcelCode, min, max, pct.setScale(2, RoundingMode.HALF_UP)))
+                                    .build());
+                        }
+                    }
+                }
+            }
         }
 
-        // Rule 2: RULE_ACTIVE_ENCUMBRANCE
+        // Rule 2: RULE_ACTIVE_ENCUMBRANCE (global across any provided evidence)
         List<NormalizedAssertion> encumbrances = assertions.stream()
                 .filter(a -> "ENCUMBRANCE_STATUS".equals(a.getAttributeName()) ||
                              "TAX_STATUS".equals(a.getAttributeName()) ||
@@ -114,38 +155,6 @@ public class ContradictionReconciliationEngine {
                     .explanation(String.format("Active encumbrance or restriction detected from source [%s]: %s = '%s'.",
                             enc.getSourceId(), enc.getAttributeName(), enc.getRawValue()))
                     .build());
-        }
-
-        // Rule 3: RULE_SURVEY_BOUNDARY_DEVIATION
-        List<NormalizedAssertion> areaAssertions = assertions.stream()
-                .filter(a -> "SURVEY_AREA_SQM".equals(a.getAttributeName()) || "AREA".equals(a.getAttributeName()))
-                .toList();
-
-        if (areaAssertions.size() >= 2) {
-            List<BigDecimal> areas = new ArrayList<>();
-            for (NormalizedAssertion a : areaAssertions) {
-                try {
-                    areas.add(new BigDecimal(a.getNormalizedValue()));
-                } catch (Exception ignored) {}
-            }
-            if (areas.size() >= 2) {
-                BigDecimal min = areas.stream().min(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
-                BigDecimal max = areas.stream().max(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
-                if (min.compareTo(BigDecimal.ZERO) > 0) {
-                    BigDecimal diff = max.subtract(min);
-                    BigDecimal pct = diff.divide(min, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
-                    if (pct.compareTo(BigDecimal.valueOf(1.5)) > 0) {
-                        witnesses.add(ConflictWitness.builder()
-                                .ruleCode("RULE_SURVEY_BOUNDARY_DEVIATION")
-                                .sourceIds(areaAssertions.stream().map(NormalizedAssertion::getSourceId).distinct().toList())
-                                .conflictingAssertionIds(areaAssertions.stream().map(NormalizedAssertion::getEvidenceId).toList())
-                                .severity("MEDIUM")
-                                .explanation(String.format("Area discrepancy exceeds 1.5%% tolerance (observed min: %s sqm, max: %s sqm, variance: %s%%).",
-                                        min, max, pct.setScale(2, RoundingMode.HALF_UP)))
-                                .build());
-                    }
-                }
-            }
         }
 
         return witnesses;

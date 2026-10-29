@@ -1,9 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Shield, UserCheck, LogOut, RefreshCw } from 'lucide-react';
+import { Shield, UserCheck, LogOut, RefreshCw, RotateCcw } from 'lucide-react';
+import { api } from '../api/client';
 
 export const Navbar: React.FC = () => {
   const { user, quickLogin, logout } = useAuth();
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetDemo = async () => {
+    if (!window.confirm('Reset all demo parcels and mutations to baseline initial state (P-101 to P-405)?')) {
+      return;
+    }
+    setResetting(true);
+    try {
+      await api.admin.resetDemo();
+      alert('Demo data successfully reset! Initial parcels P-101, P-202, P-303, P-404, P-405 are ready.');
+      window.location.reload();
+    } catch (err: any) {
+      alert('Demo reset failed: ' + err.message);
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const getRoleBadgeColor = (role?: string) => {
     switch (role) {
@@ -31,8 +49,18 @@ export const Navbar: React.FC = () => {
           </div>
         </div>
 
-        {/* Persona Switcher & User Profile */}
-        <div className="flex items-center space-x-4">
+        {/* Persona Switcher & Reset Demo Button */}
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={handleResetDemo}
+            disabled={resetting}
+            title="Reset to clean baseline demo dataset (P-101 to P-405)"
+            className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold shadow-xs transition"
+          >
+            <RotateCcw className={`w-3.5 h-3.5 text-amber-700 ${resetting ? 'animate-spin' : ''}`} />
+            <span>{resetting ? 'Resetting...' : 'Reset Demo'}</span>
+          </button>
+
           <div className="hidden lg:flex items-center space-x-1.5 text-xs bg-slate-100 p-1 rounded-lg border border-slate-200">
             <span className="text-slate-500 font-medium px-2 flex items-center gap-1">
               <RefreshCw className="w-3 h-3" /> Quick Switch:

@@ -33,6 +33,9 @@ public class BlockchainTransaction {
     @Column(name = "gas_used")
     private Long gasUsed;
 
+    @Column(name = "is_simulated", nullable = false)
+    private boolean isSimulated = false;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -40,7 +43,7 @@ public class BlockchainTransaction {
 
     public BlockchainTransaction(String id, MutationRequest mutation, String txHash, long chainId,
                                  String contractAddress, Long blockNumber, Integer receiptStatus,
-                                 Long gasUsed, Instant createdAt) {
+                                 Long gasUsed, boolean isSimulated, Instant createdAt) {
         this.id = id;
         this.mutation = mutation;
         this.txHash = txHash;
@@ -49,6 +52,7 @@ public class BlockchainTransaction {
         this.blockNumber = blockNumber;
         this.receiptStatus = receiptStatus;
         this.gasUsed = gasUsed;
+        this.isSimulated = isSimulated;
         this.createdAt = createdAt;
     }
 
@@ -72,6 +76,8 @@ public class BlockchainTransaction {
     public void setReceiptStatus(Integer receiptStatus) { this.receiptStatus = receiptStatus; }
     public Long getGasUsed() { return gasUsed; }
     public void setGasUsed(Long gasUsed) { this.gasUsed = gasUsed; }
+    public boolean isSimulated() { return isSimulated; }
+    public void setSimulated(boolean simulated) { isSimulated = simulated; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
@@ -84,6 +90,7 @@ public class BlockchainTransaction {
         private Long blockNumber;
         private Integer receiptStatus;
         private Long gasUsed;
+        private boolean isSimulated = false;
         private Instant createdAt;
 
         public Builder id(String id) { this.id = id; return this; }
@@ -94,10 +101,11 @@ public class BlockchainTransaction {
         public Builder blockNumber(Long blockNumber) { this.blockNumber = blockNumber; return this; }
         public Builder receiptStatus(Integer receiptStatus) { this.receiptStatus = receiptStatus; return this; }
         public Builder gasUsed(Long gasUsed) { this.gasUsed = gasUsed; return this; }
+        public Builder isSimulated(boolean isSimulated) { this.isSimulated = isSimulated; return this; }
         public Builder createdAt(Instant createdAt) { this.createdAt = createdAt; return this; }
 
         public BlockchainTransaction build() {
-            return new BlockchainTransaction(id, mutation, txHash, chainId, contractAddress, blockNumber, receiptStatus, gasUsed, createdAt);
+            return new BlockchainTransaction(id, mutation, txHash, chainId, contractAddress, blockNumber, receiptStatus, gasUsed, isSimulated, createdAt);
         }
     }
 }

@@ -162,9 +162,9 @@ public class MutationWorkflowService {
             predicateResultRepository.save(pr);
         }
 
-        // Generate and Persist Decision Certificate
+        // Generate and Persist Decision Certificate (including evidence fingerprints)
         DecisionCertificate certificate = certificateEngine.generateCertificate(
-                mutation, decision, predicates, conflictWitnesses, lineageResult
+                mutation, decision, predicates, conflictWitnesses, lineageResult, allEvidence
         );
         decisionCertificateRepository.findByMutationId(mutationId).ifPresent(decisionCertificateRepository::delete);
         decisionCertificateRepository.save(certificate);
@@ -200,11 +200,22 @@ public class MutationWorkflowService {
         MutationRequest mutation = mutationRequestRepository.findById(mutationId)
                 .orElseThrow(() -> new IllegalArgumentException("Mutation request not found: " + mutationId));
 
+        Optional<DecisionCertificate> certOpt = decisionCertificateRepository.findByMutationId(mutationId);
+
         if ("APPROVE".equalsIgnoreCase(action)) {
+            // Strict Server-Side Gate: cannot approve a request evaluated as HOLD or REJECT
+            if (certOpt.isPresent() && !"AUTHORIZE".equalsIgnoreCase(certOpt.get().getDecision())) {
+                throw new IllegalStateException("Review action APPROVE rejected: mutation has unfulfilled predicates (evaluation decision: "
+                        + certOpt.get().getDecision() + "). Settlement cannot be approved while on HOLD or REJECT.");
+            }
+            if ("HELD".equals(mutation.getStatus()) || "REJECTED".equals(mutation.getStatus())) {
+                throw new IllegalStateException("Review action APPROVE rejected: mutation status is " + mutation.getStatus()
+                        + ". Cannot approve without required evidence resolution.");
+            }
             mutation.setStatus("READY_FOR_COMMIT");
         } else if ("REJECT".equalsIgnoreCase(action)) {
             mutation.setStatus("REJECTED");
-        } else if ("HOLD".equalsIgnoreCase(action)) {
+        } else if ("HOLD".equalsIgnoreCase(action) || "REQUEST_EVIDENCE".equalsIgnoreCase(action) || "ESCALATE".equalsIgnoreCase(action)) {
             mutation.setStatus("HELD");
         }
         mutation.setAssignedReviewer(reviewer);
@@ -226,6 +237,12 @@ public class MutationWorkflowService {
 
         DecisionCertificate certificate = decisionCertificateRepository.findByMutationId(mutationId)
                 .orElseThrow(() -> new IllegalStateException("Decision certificate not found for mutation " + mutationId));
+
+        // Strict Server-Side Settlement Gate: enforce M8 outcome
+        if (!"AUTHORIZE".equalsIgnoreCase(certificate.getDecision())) {
+            throw new IllegalStateException("Settlement blocked by M8 uncertainty engine: decision is " + certificate.getDecision()
+                    + ". Only AUTHORIZE mutations can be committed to the blockchain.");
+        }
 
         List<String> parcelIds = parseJsonList(mutation.getTargetParcelIds());
         List<Parcel> targetParcels = parcelRepository.findAllById(parcelIds);
@@ -263,6 +280,7 @@ public class MutationWorkflowService {
                 .blockNumber(commitResult.getBlockNumber())
                 .receiptStatus(1)
                 .gasUsed(commitResult.getGasUsed())
+                .isSimulated(commitResult.isSimulated())
                 .createdAt(Instant.now())
                 .build();
         blockchainTransactionRepository.save(btx);
@@ -274,7 +292,7 @@ public class MutationWorkflowService {
         mutation.setUpdatedAt(Instant.now());
         mutationRequestRepository.save(mutation);
 
-        auditEventService.recordEvent(committer.getId(), "COMMIT_MUTATION", "MUTATION", mutationId, "TxHash: " + commitResult.getTxHash());
+        auditEventService.recordEvent(committer.getId(), "COMMIT_MUTATION", "MUTATION", mutationId, "TxHash: " + commitResult.getTxHash() + (commitResult.isSimulated() ? " [SIMULATED]" : " [LIVE]"));
 
         Map<String, Object> resp = new HashMap<>();
         resp.put("mutationId", mutationId);
@@ -282,6 +300,7 @@ public class MutationWorkflowService {
         resp.put("txHash", commitResult.getTxHash());
         resp.put("blockNumber", commitResult.getBlockNumber());
         resp.put("certificateHash", certificate.getCertificateHash());
+        resp.put("isSimulated", commitResult.isSimulated());
         return resp;
     }
 

@@ -172,10 +172,36 @@ export const MutationWorkbench: React.FC = () => {
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs space-y-1.5">
           <div className="flex items-center gap-2 font-bold text-sm text-emerald-800">
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-            Mutation Approved and Committed to Local EVM Blockchain
+            Mutation Approved and Committed to Blockchain
           </div>
           <div className="font-mono text-slate-600">
             State updated in PostgreSQL projection and anchored with cryptographic Decision Certificate.
+          </div>
+        </div>
+      )}
+
+      {/* Warning Banner if HELD */}
+      {mutation.status === 'HELD' && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs space-y-1.5">
+          <div className="flex items-center gap-2 font-bold text-sm text-amber-800">
+            <AlertCircle className="w-5 h-5 text-amber-600" />
+            Settlement Blocked: Application on HOLD (Unresolved Evidence)
+          </div>
+          <div className="text-amber-800">
+            {mutation.decisionReason || 'Missing or stale evidence prevents clearance. Under the M8 three-valued logic, absence of evidence is not proof of clearance. On-chain commitment is disabled.'}
+          </div>
+        </div>
+      )}
+
+      {/* Error Banner if REJECTED */}
+      {mutation.status === 'REJECTED' && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-900 text-xs space-y-1.5">
+          <div className="flex items-center gap-2 font-bold text-sm text-red-800">
+            <XCircle className="w-5 h-5 text-red-600" />
+            Settlement Blocked: Application REJECTED (Hard Invariant Violation)
+          </div>
+          <div className="text-red-800">
+            {mutation.decisionReason || 'One or more mandatory predicates were violated (ownership contradiction, area discrepancy > 1.5%, or topological overlap).'}
           </div>
         </div>
       )}
