@@ -1,10 +1,10 @@
 Method,Conflict_F1,Unsafe_Auth_Rate,False_Hold_Rate,Lineage_Recall,Median_Latency_ms,P95_Latency_ms,Checks_Per_Mutation,Throughput_TPS
-B0 Conventional DB,0.000,1.0000,0.0000,0.000,0.00,0.00,2,26197.5
-B1 Blockchain-Only,0.000,1.0000,0.0000,0.000,0.13,0.44,4,2804.6
-B2 Full Revalidation,1.000,0.0000,0.0000,1.000,0.26,0.67,39,2729.3
-P Proposed Framework,1.000,0.0000,0.0000,1.000,0.07,0.22,14,9789.4
-A1 No M5 (No Contradiction),0.000,0.2545,0.0000,1.000,0.03,0.06,10,26546.2
-A2 No M8 (Binary Logic),1.000,0.2424,0.0000,1.000,0.06,0.20,11,11615.4
-A3 No M2 (No Lineage),1.000,0.3394,0.0000,0.000,0.07,0.23,11,9841.5
-A4 No Scoped Revalidation,1.000,0.0000,0.0000,1.000,0.05,0.19,39,12057.3
-A5 No Certificate,1.000,0.0000,0.0000,1.000,0.02,0.03,12,55021.2
+B0 Conventional DB,0.000,1.0000,0.0000,0.000,0.00,0.00,2,105024.4
+B1 Blockchain-Only,0.000,1.0000,0.0000,0.000,0.14,0.45,4,2756.3
+B2 Full Revalidation,1.000,0.0000,0.0000,1.000,0.23,0.72,39,2817.6
+P Proposed Framework,1.000,0.0000,0.0000,1.000,0.06,0.19,14,11970.1
+A1 No M5 (No Contradiction),0.000,0.2545,0.0000,1.000,0.05,0.09,10,17111.0
+A2 No M8 (Binary Logic),1.000,0.2424,0.0000,1.000,0.08,0.18,11,9794.6
+A3 No M2 (No Lineage),1.000,0.3394,0.0000,0.000,0.07,0.67,11,3968.9
+A4 No Scoped Revalidation,1.000,0.0000,0.0000,1.000,0.16,1.05,39,2718.0
+A5 No Certificate,1.000,0.0000,0.0000,1.000,0.05,0.12,12,15183.6

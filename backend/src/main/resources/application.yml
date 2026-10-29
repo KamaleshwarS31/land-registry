@@ -7,7 +7,7 @@ spring:
   application:
     name: land-registry-backend
   profiles:
-    active: dev
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   servlet:
     multipart:
       max-file-size: 15MB

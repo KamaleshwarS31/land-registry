@@ -99,7 +99,20 @@ public class EvidenceService {
 
     @Transactional(readOnly = true)
     public List<EvidenceRecord> getEvidenceByParcelId(String parcelId) {
-        return evidenceRecordRepository.findByParcelIdOrderByObservedAtDesc(parcelId);
+        if (parcelId == null || parcelId.isBlank()) {
+            return List.of();
+        }
+        List<EvidenceRecord> records = evidenceRecordRepository.findByParcelIdOrderByObservedAtDesc(parcelId);
+        if (records.isEmpty()) {
+            records = evidenceRecordRepository.findByParcelParcelCodeOrderByObservedAtDesc(parcelId);
+        }
+        if (records.isEmpty()) {
+            records = evidenceRecordRepository.findByParcelIdOrderByObservedAtDesc(parcelId.toLowerCase());
+        }
+        if (records.isEmpty()) {
+            records = evidenceRecordRepository.findByParcelParcelCodeOrderByObservedAtDesc(parcelId.toUpperCase());
+        }
+        return records;
     }
 
     @Transactional(readOnly = true)

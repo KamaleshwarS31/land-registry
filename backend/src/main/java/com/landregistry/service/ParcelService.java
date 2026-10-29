@@ -34,7 +34,22 @@ public class ParcelService {
 
     @Transactional(readOnly = true)
     public Optional<Parcel> getParcelById(String id) {
-        return parcelRepository.findById(id);
+        if (id == null || id.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<Parcel> parcel = parcelRepository.findById(id);
+        if (parcel.isPresent()) {
+            return parcel;
+        }
+        parcel = parcelRepository.findByParcelCode(id);
+        if (parcel.isPresent()) {
+            return parcel;
+        }
+        parcel = parcelRepository.findById(id.toLowerCase());
+        if (parcel.isPresent()) {
+            return parcel;
+        }
+        return parcelRepository.findByParcelCode(id.toUpperCase());
     }
 
     @Transactional(readOnly = true)
@@ -50,22 +65,32 @@ public class ParcelService {
     @Transactional(readOnly = true)
     public Map<String, Object> getParcelLineageTree(String parcelId) {
         Map<String, Object> result = new HashMap<>();
-        List<ParcelLineage> parents = parcelLineageRepository.findByChildParcelId(parcelId);
-        List<ParcelLineage> children = parcelLineageRepository.findByParentParcelId(parcelId);
+        String resolvedId = parcelId;
+        Optional<Parcel> pOpt = getParcelById(parcelId);
+        if (pOpt.isPresent()) {
+            resolvedId = pOpt.get().getId();
+        }
 
-        result.put("parcelId", parcelId);
-        result.put("parents", parents.stream().map(l -> Map.of(
-                "parcelId", l.getParentParcel().getId(),
-                "parcelCode", l.getParentParcel().getParcelCode(),
-                "relationType", l.getRelationType(),
-                "mutationId", l.getMutation().getId()
-        )).toList());
-        result.put("children", children.stream().map(l -> Map.of(
-                "parcelId", l.getChildParcel().getId(),
-                "parcelCode", l.getChildParcel().getParcelCode(),
-                "relationType", l.getRelationType(),
-                "mutationId", l.getMutation().getId()
-        )).toList());
+        List<ParcelLineage> parents = parcelLineageRepository.findByChildParcelId(resolvedId);
+        List<ParcelLineage> children = parcelLineageRepository.findByParentParcelId(resolvedId);
+
+        result.put("parcelId", resolvedId);
+        result.put("parents", parents.stream().map(l -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("parcelId", l.getParentParcel() != null ? l.getParentParcel().getId() : "");
+            map.put("parcelCode", l.getParentParcel() != null ? l.getParentParcel().getParcelCode() : "");
+            map.put("relationType", l.getRelationType() != null ? l.getRelationType() : "");
+            map.put("mutationId", l.getMutation() != null ? l.getMutation().getId() : "");
+            return map;
+        }).toList());
+        result.put("children", children.stream().map(l -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("parcelId", l.getChildParcel() != null ? l.getChildParcel().getId() : "");
+            map.put("parcelCode", l.getChildParcel() != null ? l.getChildParcel().getParcelCode() : "");
+            map.put("relationType", l.getRelationType() != null ? l.getRelationType() : "");
+            map.put("mutationId", l.getMutation() != null ? l.getMutation().getId() : "");
+            return map;
+        }).toList());
 
         return result;
     }

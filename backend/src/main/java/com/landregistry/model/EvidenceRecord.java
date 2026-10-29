@@ -1,10 +1,14 @@
 package com.landregistry.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import java.time.Instant;
 
 @Entity
 @Table(name = "evidence_records")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class EvidenceRecord {
 
     @Id
@@ -48,8 +52,9 @@ public class EvidenceRecord {
     @Column(name = "sha256_hash", length = 64, nullable = false)
     private String sha256Hash;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "uploaded_by", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private User uploadedBy;
 
     @Column(name = "created_at", nullable = false)
@@ -84,8 +89,14 @@ public class EvidenceRecord {
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
+    @JsonIgnore
     public Parcel getParcel() { return parcel; }
     public void setParcel(Parcel parcel) { this.parcel = parcel; }
+
+    @JsonProperty("parcelId")
+    public String getParcelId() {
+        return parcel != null ? parcel.getId() : null;
+    }
     public String getRequestId() { return requestId; }
     public void setRequestId(String requestId) { this.requestId = requestId; }
     public String getSourceId() { return sourceId; }

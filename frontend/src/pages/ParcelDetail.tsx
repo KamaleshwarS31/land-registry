@@ -23,21 +23,37 @@ export const ParcelDetail: React.FC = () => {
   const [lineage, setLineage] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'boundary' | 'evidence' | 'lineage' | 'blockchain'>('boundary');
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    Promise.all([
-      api.parcels.get(id),
-      api.evidence.getForParcel(id),
-      api.parcels.getLineage(id),
-    ])
-      .then(([pData, eData, lData]) => {
+    setErrorMsg(null);
+
+    // Primary parcel fetch
+    api.parcels.get(id)
+      .then((pData) => {
         setParcel(pData);
-        setEvidence(eData);
-        setLineage(lData);
+        // Non-blocking parallel fetch of secondary metadata
+        api.evidence.getForParcel(id)
+          .then((eData) => setEvidence(Array.isArray(eData) ? eData : []))
+          .catch((err) => {
+            console.warn('Could not load evidence for parcel:', err);
+            setEvidence([]);
+          });
+
+        api.parcels.getLineage(id)
+          .then((lData) => setLineage(lData || { parents: [], children: [] }))
+          .catch((err) => {
+            console.warn('Could not load lineage for parcel:', err);
+            setLineage({ parents: [], children: [] });
+          });
       })
-      .catch((err) => console.error(err))
+      .catch((err) => {
+        console.error('Failed to load parcel:', err);
+        setErrorMsg(err.message || 'Parcel not found');
+        setParcel(null);
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -49,7 +65,8 @@ export const ParcelDetail: React.FC = () => {
     return (
       <div className="text-center py-20 text-slate-500">
         <h2 className="text-xl font-bold">Parcel Not Found</h2>
-        <Link to="/parcels" className="text-emerald-600 text-sm font-semibold mt-2 inline-block">
+        {errorMsg && <p className="text-xs text-rose-500 mt-1">{errorMsg}</p>}
+        <Link to="/parcels" className="text-emerald-600 text-sm font-semibold mt-3 inline-block">
           &larr; Back to Directory
         </Link>
       </div>

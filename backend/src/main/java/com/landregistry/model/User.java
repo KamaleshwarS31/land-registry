@@ -15,6 +15,7 @@ public class User {
     private String login;
 
     @Column(name = "password_hash", length = 100, nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String passwordHash;
 
     @Column(name = "display_name", length = 100, nullable = false)

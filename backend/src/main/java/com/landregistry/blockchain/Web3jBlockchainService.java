@@ -191,6 +191,18 @@ public class Web3jBlockchainService {
     }
 
     private BlockchainCommitResult executeContractCall(String action, Function function) {
+        if (isSimulatedMode()) {
+            String simTxHash = "0x" + UUID.randomUUID().toString().replace("-", "") + "00000000000000000000000000000000";
+            log.info("SIMULATED on-chain commit [{}] -> Tx: {}", action, simTxHash);
+            return BlockchainCommitResult.builder()
+                    .success(true)
+                    .txHash(simTxHash)
+                    .blockNumber(100L)
+                    .gasUsed(48250L)
+                    .simulated(true)
+                    .build();
+        }
+
         if (!isConnected) {
             initConnection();
         }
@@ -202,7 +214,26 @@ public class Web3jBlockchainService {
                 BigInteger gasLimit = BigInteger.valueOf(300_000);
 
                 var ethSendTx = txManager.sendTransaction(gasPrice, gasLimit, contractAddress, encodedData, BigInteger.ZERO);
+                if (ethSendTx.hasError()) {
+                    log.error("Live EVM send error for {}: {}", action, ethSendTx.getError().getMessage());
+                    return BlockchainCommitResult.builder()
+                            .success(false)
+                            .txHash(null)
+                            .simulated(false)
+                            .errorMessage("EVM send error: " + ethSendTx.getError().getMessage())
+                            .build();
+                }
+
                 String txHash = ethSendTx.getTransactionHash();
+                if (txHash == null || txHash.isBlank()) {
+                    log.error("Live EVM send returned null txHash for {}", action);
+                    return BlockchainCommitResult.builder()
+                            .success(false)
+                            .txHash(null)
+                            .simulated(false)
+                            .errorMessage("EVM node did not return a transaction hash")
+                            .build();
+                }
 
                 // Wait for receipt
                 var receiptOpt = web3j.ethGetTransactionReceipt(txHash).send().getTransactionReceipt();
@@ -219,8 +250,8 @@ public class Web3jBlockchainService {
                     return BlockchainCommitResult.builder()
                             .success(isSuccess)
                             .txHash(receipt.getTransactionHash())
-                            .blockNumber(receipt.getBlockNumber().longValue())
-                            .gasUsed(receipt.getGasUsed().longValue())
+                            .blockNumber(receipt.getBlockNumber() != null ? receipt.getBlockNumber().longValue() : 1L)
+                            .gasUsed(receipt.getGasUsed() != null ? receipt.getGasUsed().longValue() : 65000L)
                             .simulated(false)
                             .errorMessage(isSuccess ? null : "Transaction reverted on chain")
                             .build();
@@ -236,14 +267,12 @@ public class Web3jBlockchainService {
 
             } catch (Exception e) {
                 log.error("Live EVM execution failed for {}: {}", action, e.getMessage());
-                if (!isSimulatedMode()) {
-                    return BlockchainCommitResult.builder()
-                            .success(false)
-                            .txHash(null)
-                            .simulated(false)
-                            .errorMessage("EVM transaction failed: " + e.getMessage())
-                            .build();
-                }
+                return BlockchainCommitResult.builder()
+                        .success(false)
+                        .txHash(null)
+                        .simulated(false)
+                        .errorMessage("EVM transaction failed: " + e.getMessage())
+                        .build();
             }
         }
 
